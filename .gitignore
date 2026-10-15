@@ -1,0 +1,9 @@
+data/
+*.tsv
+*.tsv.gz
+*.exe
+picker
+test_amrita
+build/
+.vscode/
+*.csv
