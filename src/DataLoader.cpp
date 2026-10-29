@@ -107,6 +107,20 @@ std::vector<Title> loadTitles(const std::string& basicsPath,
 }
 
 
+// mixes each title's rating with the overall average.
+// few votes = pulled toward the average, lots of votes = stays near its own rating
+void computeScores(std::vector<Title>& titles, int m) {
+    if (titles.empty()) return;
+    double sum = 0.0;
+    for (const Title& t : titles) sum += t.rating;
+    double C = sum / titles.size();           // average rating across every title
+
+    for (Title& t : titles) {
+        double v = t.votes;                   // a double so the division doesn't round to 0
+        t.score = (v / (v + m)) * t.rating + (m / (v + m)) * C;
+    }
+}
+
 uint32_t genreBit(const std::string& genre) {
     auto it = g_genreIndex.find(genre);
     return it == g_genreIndex.end() ? 0 : (1u << it->second);
