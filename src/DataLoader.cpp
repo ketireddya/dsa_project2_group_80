@@ -7,7 +7,10 @@ namespace {   // everything in here is private to this file
 
 struct Rating { float rating; int votes; };
 
-// Splits "a\tb\tc" into {"a","b","c"}. Keeps empty fields.
+std::vector<std::string> g_genreNames;              // bit position -> "Comedy"
+std::unordered_map<std::string, int> g_genreIndex;  // "Comedy" -> bit position
+
+// splits "a\tb\tc" into {"a","b","c"} and keeps empty fields
 std::vector<std::string> splitOn(const std::string& line, char delim) {
     std::vector<std::string> parts;
     size_t start = 0;
@@ -22,8 +25,8 @@ std::vector<std::string> splitOn(const std::string& line, char delim) {
     }
 }
 
-// IMDb writes missing values as backslash + N.
-// In C++ source that's written "\\N" (the first backslash escapes the second).
+// IMDb writes missing values as backslash + N
+// in C++ source that's written "\\N" (the first backslash escapes the second)
 bool isMissing(const std::string& s) { return s.empty() || s == "\\N"; }
 
 int toIntOr(const std::string& s, int fallback) {
@@ -31,19 +34,39 @@ int toIntOr(const std::string& s, int fallback) {
     try { return std::stoi(s); } catch (...) { return fallback; }
 }
 
-// Removes a trailing '\r' from Windows-style line endings.
+// removes a trailing '\r' from Windows-style line endings
 void stripCR(std::string& line) {
     if (!line.empty() && line.back() == '\r') line.pop_back();
 }
 
-} // namespace
+} // end namespace
+
+// "Comedy,Drama" -> (bit for Comedy) | (bit for Drama); new genres get the next bit
+uint32_t maskFromGenres(const std::string& field) {
+    if (isMissing(field)) return 0;
+    uint32_t mask = 0;
+    for (const std::string& g : splitOn(field, ',')) {
+        int idx;
+        auto it = g_genreIndex.find(g);
+        if (it != g_genreIndex.end()) {
+            idx = it->second;                  // seen this genre before
+        } else {
+            idx = (int)g_genreNames.size();    // new genre: give it the next bit
+            if (idx >= 32) continue;           // a uint32_t only has 32 bits
+            g_genreNames.push_back(g);
+            g_genreIndex[g] = idx;
+        }
+        mask |= (1u << idx);                   // turn on that genre's bit
+    }
+    return mask;
+}
 
 std::vector<Title> loadTitles(const std::string& basicsPath,
                               const std::string& ratingsPath) {
     std::vector<Title> titles;
     std::string line;
 
-    // Step A: ratings file -> hash map keyed by tconst
+    // ratings file -> hash map keyed by tconst
     std::ifstream rin(ratingsPath);
     if (!rin) { std::cerr << "Can't open " << ratingsPath << "\n"; return titles; }
     std::unordered_map<std::string, Rating> ratings;
@@ -56,7 +79,7 @@ std::vector<Title> loadTitles(const std::string& basicsPath,
         ratings[f[0]] = { std::stof(f[1]), std::stoi(f[2]) };
     }
 
-    // Step B: stream basics, keep only titles that have a rating
+    // stream basics, keep only titles that have a rating
     std::ifstream bin(basicsPath);
     if (!bin) { std::cerr << "Can't open " << basicsPath << "\n"; return titles; }
     titles.reserve(ratings.size());
@@ -75,9 +98,18 @@ std::vector<Title> loadTitles(const std::string& basicsPath,
         t.name    = f[2];
         t.year    = toIntOr(f[5], -1);
         t.runtime = toIntOr(f[7], -1);
+        t.genreMask = maskFromGenres(f[8]);
         t.rating  = it->second.rating;
         t.votes   = it->second.votes;
         titles.push_back(std::move(t));
     }
     return titles;
 }
+
+
+uint32_t genreBit(const std::string& genre) {
+    auto it = g_genreIndex.find(genre);
+    return it == g_genreIndex.end() ? 0 : (1u << it->second);
+}
+
+const std::vector<std::string>& genreNames() { return g_genreNames; }
