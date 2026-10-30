@@ -15,10 +15,10 @@ struct Title {
     double score = 0.0;     // weighted score, filled by computeScores()
 };
 
-// The ONE ranking rule both sorts use.
-// Higher score first; ties broken by more votes, then by tconst.
-// Because no two titles ever tie completely, merge sort and quick sort
-// must produce IDENTICAL output, so the correctness check is a simple ==.
+// the one ranking rule both sorts use.
+// higher score first; ties broken by more votes, then by tconst.
+// because no two titles ever tie completely, merge sort and quick sort
+// must produce identical output, so the correctness check is a simple ==.
 inline bool ranksBefore(const Title& a, const Title& b) {
     if (a.score != b.score) return a.score > b.score;
     if (a.votes != b.votes) return a.votes > b.votes;
