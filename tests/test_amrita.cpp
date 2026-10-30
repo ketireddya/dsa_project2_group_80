@@ -1,6 +1,7 @@
 #include <iomanip>
 #include <iostream>
 #include "../src/DataLoader.h"
+#include "../src/Filter.h"
 
 // turns the genre number back into words like "Comedy,Drama" so we can read it
 std::string genresToText(uint32_t mask) {
@@ -50,4 +51,35 @@ int main(int argc, char* argv[]) {
         if (all[i].votes > all[most].votes) most = i;
     std::cout << "\nmost votes: " << all[most].name << " | " << all[most].rating
               << " | " << all[most].votes << " votes | score " << all[most].score << "\n";
+
+    // no filters set should keep everything
+    std::cout << "\nno filters keeps all: "
+              << (filterTitles(all, FilterOptions{}).size() == all.size() ? "PASS" : "FAIL") << "\n";
+
+    // try a real filter: comedy or horror movies from 2000-2010, 90+ min, 10k+ votes
+    FilterOptions opts;
+    opts.type = "movie";
+    opts.genreMask = genreBit("Comedy") | genreBit("Horror");
+    opts.minYear = 2000;
+    opts.maxYear = 2010;
+    opts.minRuntime = 90;
+    opts.minVotes = 10000;
+    std::vector<Title> picked = filterTitles(all, opts);
+    std::cout << "filter kept " << picked.size() << " of " << all.size() << " titles\n";
+
+    // double check every kept title actually passes, in case the filter has a bug
+    int bad = 0;
+    for (const Title& t : picked) {
+        bool ok = t.type == "movie" && (t.genreMask & opts.genreMask) != 0
+               && t.year >= 2000 && t.year <= 2010
+               && t.runtime >= 90 && t.votes >= 10000;
+        if (!ok) ++bad;
+    }
+    std::cout << "titles that shouldn't be there: " << bad << "\n";
+
+    for (size_t i = 0; i < picked.size() && i < 5; ++i) {
+        const Title& t = picked[i];
+        std::cout << t.name << " (" << t.year << ") | " << t.runtime << " min | "
+                  << t.votes << " votes | " << genresToText(t.genreMask) << "\n";
+    }
 }
