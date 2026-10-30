@@ -2,6 +2,9 @@
 #include <iostream>
 #include "../src/DataLoader.h"
 #include "../src/Filter.h"
+#include <chrono>
+#include <random>
+#include "../src/MergeSort.h"
 
 // turns the genre number back into words like "Comedy,Drama" so we can read it
 std::string genresToText(uint32_t mask) {
@@ -14,6 +17,44 @@ std::string genresToText(uint32_t mask) {
         }
     }
     return out.empty() ? "(none)" : out;
+}
+
+// true if nothing in the list should come before the title in front of it
+bool isRanked(const std::vector<Title>& a) {
+    for (size_t i = 1; i < a.size(); ++i)
+        if (ranksBefore(a[i], a[i - 1])) return false;
+    return true;
+}
+
+// makes a fake title with just what the comparison looks at
+Title make(const std::string& id, double score, int votes) {
+    Title t; t.tconst = id; t.score = score; t.votes = votes; return t;
+}
+
+// runs merge sort on the cases that usually break sorting code
+void testMergeSort() {
+    std::vector<std::vector<Title>> cases = {
+        {},                                                          // empty
+        { make("tt1", 5, 10) },                                      // one title
+        { make("tt1", 5, 10), make("tt2", 7, 10) },                  // two titles
+        { make("tt3", 6, 1), make("tt1", 6, 1), make("tt2", 6, 1) }, // same score and votes
+        { make("tt1", 9, 1), make("tt2", 8, 1), make("tt3", 7, 1) }, // already in order
+        { make("tt1", 1, 1), make("tt2", 2, 1), make("tt3", 3, 1) }, // backwards
+    };
+    for (size_t i = 0; i < cases.size(); ++i) {
+        size_t before = cases[i].size();
+        mergeSort(cases[i]);
+        bool ok = isRanked(cases[i]) && cases[i].size() == before;   // sorted and nothing lost
+        std::cout << "case " << i << ": " << (ok ? "PASS" : "FAIL") << "\n";
+    }
+
+    // 100k random fake titles. same seed every run so results don't change
+    std::mt19937 rng(42);
+    std::vector<Title> r;
+    for (int i = 0; i < 100000; ++i)
+        r.push_back(make("tt" + std::to_string(i), (rng() % 1000) / 100.0, rng() % 50));
+    mergeSort(r);
+    std::cout << "random 100k: " << (isRanked(r) && r.size() == 100000 ? "PASS" : "FAIL") << "\n";
 }
 
 int main(int argc, char* argv[]) {
@@ -82,4 +123,30 @@ int main(int argc, char* argv[]) {
         std::cout << t.name << " (" << t.year << ") | " << t.runtime << " min | "
                   << t.votes << " votes | " << genresToText(t.genreMask) << "\n";
     }
+
+    std::cout << "\n";
+    testMergeSort();
+
+    // sort the filtered movies from above and show the top 10
+    mergeSort(picked);
+    std::cout << "\ntop 10 comedy/horror movies 2000-2010 ("
+              << (isRanked(picked) ? "order OK" : "ORDER WRONG") << "):\n";
+    for (size_t i = 0; i < picked.size() && i < 10; ++i) {
+        const Title& t = picked[i];
+        std::cout << i + 1 << ". " << t.name << " (" << t.year << ") | " << t.rating
+                  << " | " << t.votes << " votes | score " << t.score << "\n";
+    }
+
+    // time a bigger sort: every movie with 100+ votes
+    FilterOptions movieOpts;
+    movieOpts.type = "movie";
+    movieOpts.minVotes = 100;
+    std::vector<Title> movies = filterTitles(all, movieOpts);
+
+    auto start = std::chrono::steady_clock::now();
+    mergeSort(movies);                       // only the sort gets timed
+    auto end = std::chrono::steady_clock::now();
+    std::cout << "\nSorted " << movies.size() << " titles with Merge sort in "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+              << " ms (" << (isRanked(movies) ? "order OK" : "ORDER WRONG") << ")\n";
 }
