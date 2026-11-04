@@ -101,7 +101,22 @@ void testQuickSort() {
     }
 }
 
+// top-k has to give the same titles as the front of a full sort
+void testTopK() {
+    std::vector<Title> base = randomTitles(100000, 99);
+    std::vector<Title> sorted = base;
+    quickSort(sorted);
+    for (int k : { 0, 1, 10, 100, 200000 }) {   // 200000 is bigger than the list on purpose
+        std::vector<Title> top = topK(base, k);
+        size_t expectSize = std::min((size_t)k, sorted.size());
+        std::vector<Title> expect(sorted.begin(), sorted.begin() + expectSize);
+        std::cout << "top-" << k << ": " << (sameOrder(top, expect) ? "PASS" : "FAIL") << "\n";
+    }
+}
+
 int main() {
     std::cout << "--- quick sort ---\n";
     testQuickSort();
+    std::cout << "\n--- top-k heap ---\n";
+    testTopK();
 }
