@@ -7,3 +7,5 @@ test_amrita
 build/
 .vscode/
 *.csv
+*.obj
+*.o
