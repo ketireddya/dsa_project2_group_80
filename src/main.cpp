@@ -11,6 +11,7 @@
 #include "Filter.h"
 #include "MergeSort.h"
 #include "Title.h"
+#include "Trie.h"
 
 // Returns true if input file is readable
 bool fileExists(const std::string& path) {
