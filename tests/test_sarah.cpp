@@ -4,6 +4,8 @@
 #include <random>
 #include "../src/MergeSort.h"
 #include "../src/QuickSort.h"
+#include "../src/TopK.h"
+
 
 const Pivot ALL_PIVOTS[] = { Pivot::First, Pivot::Random, Pivot::MedianOfThree };
 
