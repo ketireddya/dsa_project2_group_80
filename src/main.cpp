@@ -38,7 +38,7 @@ int askForInteger(const std::string& prompt, int minimumAllowed, int maximumAllo
             }
 
             // Rejects numbers outside the range.
-            if (value < minimumAllowed or value > maximumAllowed) {
+            if (value < minimumAllowed || value > maximumAllowed) {
                 std::cout << "Enter a number from " << minimumAllowed << " to " << maximumAllowed << ".\n";
                 continue;
             }
@@ -260,19 +260,197 @@ void printCurrentFilters(const FilterOptions& filters) {
 }
 
 // Displays up to ten ranked titles.
-void printTopResults(const std::vector<Title>& titles);
+void printTopResults(const std::vector<Title>& titles) {
+    size_t amountToPrint = std::min<size_t>(10, titles.size());
+
+    std::cout << "\n";
+    std::cout << std::left << std::setw(5) << "Rank" << std::setw(40) << "Title" << std::setw(8) << "Year" << std::setw(10) << "Rating" << std::setw(12) << "Score" << "Genres\n";
+    std::cout << std::string(100, '-') << "\n";
+
+    for (size_t i = 0; i < amountToPrint; i++) {
+        const Title& title = titles[i];
+
+        std::string displayedTitle = title.name;
+
+        // Shortens titles exceeding the column.
+        if (displayedTitle.size() > 37) {
+            displayedTitle = displayedTitle.substr(0, 34) + "...";
+        }
+
+        std::string yearText;
+
+        if (title.year == -1) {
+            yearText = "Unknown";
+        }
+        else {
+            yearText = std::to_string(title.year);
+        }
+
+        std::string genreText;
+
+        if (title.genreMask == 0) {
+            genreText = "Unknown";
+        }
+        else {
+            genreText = genreMaskToText(title.genreMask);
+        }
+
+        std::cout << std::left << std::setw(5) << i + 1 << std::setw(40) << displayedTitle << std::setw(8) << yearText << std::setw(10) << std::fixed << std::setprecision(1) << title.rating << std::setw(12) << std::setprecision(3) << title.score << genreText << "\n";
+    }
+}
 
 // Returns to the menu or quits.
-bool askAfterResults();
+bool programCompletionChoice() {
+    while (true) {
+        std::cout << "\n[M] Return to main menu\n";
+        std::cout << "[Q] Quit\n";
+        std::cout << "Selection: ";
+
+        std::string input;
+        std::getline(std::cin, input);
+
+        if (input == "M" || input == "m") {
+            return true;
+        }
+        else if (input == "Q" || input == "q") {
+            return false;
+        }
+        else {
+            std::cout << "Please enter M or Q.\n";
+        }
+    }
+}
 
 // Filters, sorts, times, and displays titles.
-bool findTopMovies(
-    const std::vector<Title>& allTitles,
-    const FilterOptions& filters
-);
+bool findTopMovies(const std::vector<Title>& allTitles, const FilterOptions& filters) {
+    std::cout << "\nFiltering titles...\n";
+
+    std::vector<Title> matchingTitles = filterTitles(allTitles, filters);
+
+    std::cout << "Found " << matchingTitles.size() << " matching titles.\n";
+
+    if (matchingTitles.empty()) {
+        std::cout << "No titles matched the current filters.\n";
+        return programCompletionChoice();
+    }
+
+    auto startTime = std::chrono::steady_clock::now();
+
+    mergeSort(matchingTitles);
+
+    auto endTime = std::chrono::steady_clock::now();
+
+    double milliseconds = std::chrono::duration<double, std::milli>(endTime - startTime).count();
+
+    std::cout << "\n========================================\n";
+    std::cout << "             TOP 10 RESULTS\n";
+    std::cout << "========================================\n";
+
+    printTopResults(matchingTitles);
+
+    std::cout << "\nMerge sort ranked " << matchingTitles.size() << " titles in " << std::fixed << std::setprecision(3) << milliseconds << " milliseconds.\n";
+
+    return programCompletionChoice();
+}
 
 // Displays the main terminal menu.
-void displayMainMenu();
+void displayMainMenu() {
+    std::cout << "\n========================================\n";
+    std::cout << "         MOVIE NIGHT PICKER\n";
+    std::cout << "========================================\n";
+    std::cout << "1. Choose title type\n";
+    std::cout << "2. Choose genre\n";
+    std::cout << "3. Choose year range\n";
+    std::cout << "4. Choose runtime range\n";
+    std::cout << "5. Choose minimum vote count\n";
+    std::cout << "6. Find top 10 titles\n";
+    std::cout << "7. Reset filters\n";
+    std::cout << "8. Run sorting benchmarks\n";
+    std::cout << "9. Exit\n";
+}
 
 // Loads data and controls the application.
-int main(int argc, char* argv[]);
+int main(int argc, char* argv[]) {
+    std::string basicsPath;
+    std::string ratingsPath;
+
+    // Uses command-line paths when provided.
+    if (argc >= 3) {
+        basicsPath = argv[1];
+        ratingsPath = argv[2];
+    }
+    else {
+        basicsPath = "data/title.basics.tsv";
+        ratingsPath = "data/title.ratings.tsv";
+    }
+
+    // Stops when either file remains missing.
+    if (!fileExists(basicsPath) || !fileExists(ratingsPath)) {
+        std::cerr << "Could not find the IMDb data files.\n";
+        std::cerr << "Basics path: " << basicsPath << "\n";
+        std::cerr << "Ratings path: " << ratingsPath << "\n";
+        std::cerr << "\nRun the program like this:\n";
+        std::cerr << "movie_picker.exe path-to-basics path-to-ratings\n";
+        return 1;
+    }
+
+    std::cout << "Loading IMDb data...\n";
+    std::cout << "Basics: " << basicsPath << "\n";
+    std::cout << "Ratings: " << ratingsPath << "\n";
+    std::cout << "This may take a moment.\n\n";
+
+    std::vector<Title> allTitles = loadTitles(basicsPath, ratingsPath);
+
+    if (allTitles.empty()) {
+        std::cerr << "No IMDb titles were loaded.\n";
+        return 1;
+    }
+
+    // Calculates every title's weighted score.
+    computeScores(allTitles, 1000);
+
+    std::cout << "Successfully loaded " << allTitles.size() << " rated titles.\n";
+
+    // Stores the current filter settings.
+    FilterOptions filters;
+    bool keepRunning = true;
+
+    // Repeats until the user exits.
+    while (keepRunning) {
+        printCurrentFilters(filters);
+        displayMainMenu();
+
+        int selection = askForInteger("Selection: ", 1, 9);
+
+        if (selection == 1) {
+            filters.type = chooseTitleType();
+        }
+        else if (selection == 2) {
+            filters.genreMask = chooseGenre();
+        }
+        else if (selection == 3) {
+            chooseYearRange(filters);
+        }
+        else if (selection == 4) {
+            chooseRuntimeRange(filters);
+        }
+        else if (selection == 5) {
+            chooseMinimumVotes(filters);
+        }
+        else if (selection == 6) {
+            keepRunning = findTopMovies(allTitles, filters);
+        }
+        else if (selection == 7) {
+            resetFilters(filters);
+        }
+        else if (selection == 8) {
+            std::cout << "\nBenchmark mode will be added later.\n";
+        }
+        else {
+            keepRunning = false;
+        }
+    }
+
+    std::cout << "\nGoodbye!\n";
+    return 0;
+}
