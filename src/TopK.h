@@ -32,4 +32,4 @@ private:
 
 // the k best titles from the list, best-first, same order as the first k of a full sort, but 
 // O(nlogk) instead of O(nlogn), and the list itself isnt changed
-std::vector<Title> topk(const std::vector<Title>& titles, int k);
+std::vector<Title> topK(const std::vector<Title>& titles, int k);
