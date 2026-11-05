@@ -1,11 +1,14 @@
 #include <algorithm>
 #include <chrono>
+#include <iomanip>
 #include <iostream>
 #include <random>
+#include "../src/DataLoader.h"
+#include "../src/Filter.h"
 #include "../src/MergeSort.h"
 #include "../src/QuickSort.h"
 #include "../src/TopK.h"
-
+#include "../src/Trie.h"
 
 const Pivot ALL_PIVOTS[] = { Pivot::First, Pivot::Random, Pivot::MedianOfThree };
 
@@ -114,9 +117,92 @@ void testTopK() {
     }
 }
 
-int main() {
+
+// small trie so we know exactly what should come back
+void testTrie() {
+    std::vector<Title> t(5);
+    t[0].name = "Star Wars";
+    t[1].name = "Star Trek";
+    t[2].name = "Stardust";
+    t[3].name = "Hamlet";
+    t[4].name = "hamlet";          // same name, different case
+    Trie trie;
+    trie.build(t);
+
+    std::cout << "\"star\" -> " << trie.startsWith("star").size() << " (expect 3)\n";
+    std::cout << "\"STAR W\" -> " << trie.startsWith("STAR W").size() << " (expect 1)\n";
+    std::cout << "\"star\" capped at 2 -> " << trie.startsWith("star", 2).size() << " (expect 2)\n";
+    std::cout << "\"zzz\" -> " << trie.startsWith("zzz").size() << " (expect 0)\n";
+    std::cout << "\"\" -> " << trie.startsWith("").size() << " (expect 5)\n";
+    std::cout << "exact \"Hamlet\" -> " << trie.exact("Hamlet").size() << " (expect 2)\n";
+    std::cout << "exact \"Ham\" -> " << trie.exact("Ham").size() << " (expect 0)\n";
+}
+
+
+int main(int argc, char* argv[]) {
     std::cout << "--- quick sort ---\n";
     testQuickSort();
     std::cout << "\n--- top-k heap ---\n";
     testTopK();
+    std::cout << "\n--- trie ---\n";
+    testTrie();
+
+    // test using sample files unless we pass in two other paths
+    std::string basics  = argc >= 3 ? argv[1] : "data/sample_basics.tsv";
+    std::string ratings = argc >= 3 ? argv[2] : "data/sample_ratings.tsv";
+    std::vector<Title> all = loadTitles(basics, ratings);
+    std::cout << "\nLoaded " << all.size() << " rated titles\n";
+    if (all.empty()) return 0;
+    computeScores(all, 1000);
+    std::cout << std::fixed << std::setprecision(3);
+
+    // every movie with 100+ votes, timed with each sort
+    FilterOptions movieOpts;
+    movieOpts.type = "movie";
+    movieOpts.minVotes = 100;
+    std::vector<Title> movies = filterTitles(all, movieOpts);
+
+    std::vector<Title> merged = movies;
+    auto t0 = std::chrono::steady_clock::now();
+    mergeSort(merged);
+    std::cout << "Sorted " << movies.size() << " titles with Merge sort in " << msSince(t0) << " ms\n";
+
+    for (Pivot p : ALL_PIVOTS) {
+        std::vector<Title> q = movies;
+        t0 = std::chrono::steady_clock::now();
+        int depth = quickSort(q, p);               // only the sort gets timed
+        long long ms = msSince(t0);
+        std::cout << "Sorted " << q.size() << " titles with Quick sort (" << pivotName(p)
+                  << ") in " << ms << " ms, depth " << depth << " ("
+                  << (sameOrder(q, merged) ? "matches merge sort" : "DOES NOT MATCH") << ")\n";
+    }
+
+    // top 10 with the heap vs the front of the full sort
+    t0 = std::chrono::steady_clock::now();
+    std::vector<Title> top = topK(movies, 10);
+    long long topMs = msSince(t0);
+    std::vector<Title> front(merged.begin(), merged.begin() + std::min<size_t>(10, merged.size()));
+    std::cout << "\ntop 10 movies with the heap in " << topMs << " ms ("
+              << (sameOrder(top, front) ? "matches full sort" : "DOES NOT MATCH") << "):\n";
+    for (size_t i = 0; i < top.size(); ++i)
+        std::cout << i + 1 << ". " << top[i].name << " (" << top[i].year << ") | "
+                  << top[i].rating << " | " << top[i].votes << " votes | score "
+                  << top[i].score << "\n";
+
+    // trie over every loaded title, then a search that uses top-k to show the best matches
+    Trie trie;
+    t0 = std::chrono::steady_clock::now();
+    trie.build(all);
+    std::cout << "\nbuilt trie of " << trie.wordCount() << " titles (" << trie.nodeCount()
+              << " nodes) in " << msSince(t0) << " ms\n";
+
+    std::string prefix = "the dark";
+    std::vector<int> hits = trie.startsWith(prefix);
+    std::vector<Title> matches;
+    for (int i : hits) matches.push_back(all[i]);
+    std::vector<Title> best = topK(matches, 5);
+    std::cout << "\"" << prefix << "\": " << hits.size() << " matches, best 5:\n";
+    for (const Title& t : best)
+        std::cout << "  " << t.name << " (" << t.year << ", " << t.type << ") | score "
+                  << t.score << "\n";
 }
