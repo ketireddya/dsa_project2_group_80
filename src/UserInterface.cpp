@@ -1,4 +1,5 @@
 #include "UserInterface.h"
+#include "QuickSort.h"
 
 #include <algorithm>
 #include <chrono>
@@ -358,21 +359,42 @@ bool findTopMovies(const std::vector<Title>& allTitles, const FilterOptions& fil
         return programCompletionChoice();
     }
 
+    std::cout << "\nChoose a sorting algorithm\n";
+    std::cout << "1. Merge sort\n";
+    std::cout << "2. Quick sort\n";
+
+    int sortChoice = askForInteger("Selection: ", 1, 2);
+
     auto startTime = std::chrono::steady_clock::now();
 
-    mergeSort(matchingTitles);
+    if (sortChoice == 1) {
+        mergeSort(matchingTitles);
+    }
+    else {
+        quickSort(matchingTitles);
+    }
 
     auto endTime = std::chrono::steady_clock::now();
 
-    double milliseconds = std::chrono::duration<double, std::milli>(endTime - startTime).count();
+    double milliseconds =
+        std::chrono::duration<double, std::milli>(
+            endTime - startTime
+        ).count();
 
     std::cout << "\n========================================\n";
-    std::cout << "               TO RESULTS\n";
+    std::cout << "                RESULTS\n";
     std::cout << "========================================\n";
 
     printTopResults(matchingTitles);
 
-    std::cout << "\nMerge sort ranked " << matchingTitles.size() << " titles in " << std::fixed << std::setprecision(3) << milliseconds << " milliseconds.\n";
+    std::string algorithmName;
+    if (sortChoice == 1) {
+        algorithmName = "Merge sort";
+    } else {
+        algorithmName = "Quick sort";
+    }
+
+    std::cout << "\n" << algorithmName << " ranked " << matchingTitles.size() << " titles in " << std::fixed << std::setprecision(3) << milliseconds << " milliseconds.\n";
 
     return programCompletionChoice();
 }

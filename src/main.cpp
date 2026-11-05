@@ -58,12 +58,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Building title search...\n";
 
     Trie titleTrie;
-
-    for (std::size_t i = 0; i < allTitles.size(); i++) {
-        if (allTitles[i].votes >= 1000) {
-            titleTrie.insert(allTitles[i].name, i);
-        }
-    }
+    titleTrie.build(allTitles);
 
     std::cout << "Title search is ready.\n";
 
