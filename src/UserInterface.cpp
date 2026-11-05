@@ -341,10 +341,10 @@ bool findTopMovies(const std::vector<Title>& allTitles, const FilterOptions& fil
         matchingTitles = filterTitles(allTitles, filters);
     }
     else {
-        std::vector<std::size_t> matchingIndexes = titleTrie.searchList(titleSearch, allTitles.size());
+        std::vector<int> matchingIndexes = titleTrie.startsWith(titleSearch);
         std::vector<Title> searchedTitles;
 
-        for (std::size_t index : matchingIndexes) {
+        for (int index : matchingIndexes) {
             searchedTitles.push_back(allTitles[index]);
         }
 
