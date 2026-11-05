@@ -8,6 +8,7 @@
 #include "Title.h"
 #include "Trie.h"
 #include "UserInterface.h"
+#include "Benchmark.h"
 
 // Returns true if input file is readable
 bool fileExists(const std::string& path) {
@@ -55,12 +56,8 @@ int main(int argc, char* argv[]) {
     // Calculates every title's weighted score.
     computeScores(allTitles, 1000);
 
-    std::cout << "Building title search...\n";
-
     Trie titleTrie;
     titleTrie.build(allTitles);
-
-    std::cout << "Title search is ready.\n";
 
     std::cout << "Successfully loaded " << allTitles.size() << " rated titles.\n";
 
@@ -101,8 +98,7 @@ int main(int argc, char* argv[]) {
             resetFilters(filters, titleSearch);
         }
         else if (selection == 9) {
-            std::cout << "\nBenchmark mode will be added later.\n";
-        }
+            runBenchmarks(allTitles);        }
         else {
             keepRunning = false;
         }
