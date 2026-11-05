@@ -4,6 +4,7 @@ data/
 *.exe
 picker
 test_amrita
+test_sarah
 build/
 .vscode/
 *.csv
