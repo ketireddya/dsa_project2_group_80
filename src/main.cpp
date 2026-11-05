@@ -197,13 +197,14 @@ void chooseMinimumVotes(FilterOptions& filters) {
 }
 
 // Restores every filter to its default.
-void resetFilters(FilterOptions& filters) {
+void resetFilters(FilterOptions& filters, std::string& titleSearch) {
     filters = FilterOptions{};
+    titleSearch.clear();
     std::cout << "\nAll filters have been reset.\n";
 }
 
 // Displays the currently selected filters.
-void printCurrentFilters(const FilterOptions& filters) {
+void printCurrentFilters(const FilterOptions& filters, const std::string& titleSearch) {
     std::cout << "\nCurrent Filters\n";
     std::cout << "----------------------------------------\n";
 
@@ -255,6 +256,16 @@ void printCurrentFilters(const FilterOptions& filters) {
     else {
         std::cout << filters.minVotes;
     }
+
+    std::cout << "\nTitle Search: ";
+    if (titleSearch.empty()) {
+        std::cout << "Any";
+    }
+    else {
+        std::cout << titleSearch;
+    }
+
+    std::cout << "\n";
 
     std::cout << "\n";
     std::cout << "----------------------------------------\n";
@@ -322,11 +333,38 @@ bool programCompletionChoice() {
     }
 }
 
+// Sets the title search filter.
+void searchTitles(std::string& titleSearch) {
+    std::cout << "\nEnter title search: ";
+    std::getline(std::cin, titleSearch);
+
+    if (titleSearch.empty()) {
+        std::cout << "Title search removed.\n";
+    }
+    else {
+        std::cout << "Title search set to: " << titleSearch << "\n";
+    }
+}
+
 // Filters, sorts, times, and displays titles.
-bool findTopMovies(const std::vector<Title>& allTitles, const FilterOptions& filters) {
+bool findTopMovies(const std::vector<Title>& allTitles, const FilterOptions& filters, const Trie& titleTrie, const std::string& titleSearch) {
     std::cout << "\nFiltering titles...\n";
 
-    std::vector<Title> matchingTitles = filterTitles(allTitles, filters);
+    std::vector<Title> matchingTitles;
+
+    if (titleSearch.empty()) {
+        matchingTitles = filterTitles(allTitles, filters);
+    }
+    else {
+        std::vector<std::size_t> matchingIndexes = titleTrie.searchList(titleSearch, allTitles.size());
+        std::vector<Title> searchedTitles;
+
+        for (std::size_t index : matchingIndexes) {
+            searchedTitles.push_back(allTitles[index]);
+        }
+
+        matchingTitles = filterTitles(searchedTitles, filters);
+    }
 
     std::cout << "Found " << matchingTitles.size() << " matching titles.\n";
 
@@ -365,9 +403,10 @@ void displayMainMenu() {
     std::cout << "4. Choose runtime range\n";
     std::cout << "5. Choose minimum vote count\n";
     std::cout << "6. Find top 10 titles\n";
-    std::cout << "7. Reset filters\n";
-    std::cout << "8. Run sorting benchmarks\n";
-    std::cout << "9. Exit\n";
+    std::cout << "7. Search by title\n";
+    std::cout << "8. Reset filters\n";
+    std::cout << "9. Run sorting benchmarks\n";
+    std::cout << "10. Exit\n";
 }
 
 // Loads data and controls the application.
@@ -410,18 +449,31 @@ int main(int argc, char* argv[]) {
     // Calculates every title's weighted score.
     computeScores(allTitles, 1000);
 
+    std::cout << "Building title search...\n";
+
+    Trie titleTrie;
+
+    for (std::size_t i = 0; i < allTitles.size(); i++) {
+        if (allTitles[i].votes >= 1000) {
+            titleTrie.insert(allTitles[i].name, i);
+        }
+    }
+
+    std::cout << "Title search is ready.\n";
+
     std::cout << "Successfully loaded " << allTitles.size() << " rated titles.\n";
 
     // Stores the current filter settings.
     FilterOptions filters;
+    std::string titleSearch;
     bool keepRunning = true;
 
     // Repeats until the user exits.
     while (keepRunning) {
-        printCurrentFilters(filters);
+        printCurrentFilters(filters, titleSearch);
         displayMainMenu();
 
-        int selection = askForInteger("Selection: ", 1, 9);
+        int selection = askForInteger("Selection: ", 1, 10);
 
         if (selection == 1) {
             filters.type = chooseTitleType();
@@ -439,12 +491,15 @@ int main(int argc, char* argv[]) {
             chooseMinimumVotes(filters);
         }
         else if (selection == 6) {
-            keepRunning = findTopMovies(allTitles, filters);
+            keepRunning = findTopMovies(allTitles, filters, titleTrie, titleSearch);
         }
         else if (selection == 7) {
-            resetFilters(filters);
+            searchTitles(titleSearch);
         }
         else if (selection == 8) {
+            resetFilters(filters, titleSearch);
+        }
+        else if (selection == 9) {
             std::cout << "\nBenchmark mode will be added later.\n";
         }
         else {
