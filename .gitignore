@@ -8,3 +8,5 @@ test_sarah
 build/
 .vscode/
 *.csv
+*.obj
+*.o
