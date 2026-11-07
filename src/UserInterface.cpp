@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <iomanip>
 #include <iostream>
 
@@ -15,7 +16,11 @@ int askForInteger(const std::string& prompt, int minimumAllowed, int maximumAllo
         std::cout << prompt;
 
         std::string input;
-        std::getline(std::cin, input);
+        // if input has run out (like ctrl+z), stop instead of asking forever
+        if (!std::getline(std::cin, input)) {
+            std::cout << "\nNo more input, closing.\n";
+            std::exit(0);
+        }
 
         try {
             size_t charactersRead = 0;
@@ -305,7 +310,11 @@ bool programCompletionChoice() {
         std::cout << "Selection: ";
 
         std::string input;
-        std::getline(std::cin, input);
+        // if input has run out (like ctrl+z), stop instead of asking forever
+        if (!std::getline(std::cin, input)) {
+            std::cout << "\nNo more input, closing.\n";
+            std::exit(0);
+        }
 
         if (input == "M" || input == "m") {
             return true;
