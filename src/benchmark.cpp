@@ -42,6 +42,12 @@ double medianOfThree(double a, double b, double c) {
     return a + b + c - std::min({a, b, c}) - std::max({a, b, c});
 }
 
+// milliseconds between two moments
+double msBetween(std::chrono::steady_clock::time_point start,
+                 std::chrono::steady_clock::time_point end) {
+    return std::chrono::duration<double, std::milli>(end - start).count();
+}
+
 void runBenchmarks(const std::vector<Title>& allTitles) {
     if (allTitles.size() < 1000000) {
         std::cout << "\nBenchmarks require at least 1,000,000 loaded titles.\n";
@@ -64,7 +70,16 @@ void runBenchmarks(const std::vector<Title>& allTitles) {
         return;
     }
 
-    csv << "titles,input_order,run,merge_ms,quick_ms,merge_sorted,quick_sorted,rankings_match\n";
+    // the three ways quick sort can pick its pivot, all get tested
+    const Pivot pivots[] = { Pivot::First, Pivot::Random, Pivot::MedianOfThree };
+    const int pivotCount = 3;
+
+    // first pivot on sorted or reverse sorted input is O(n^2), so it only runs on small lists there.
+    // at 100,000 titles that's around 5 billion comparisons per run, which takes way too long
+    const size_t firstPivotLimit = 10000;
+
+    csv << "titles,input_order,run,merge_ms,quick_first_ms,quick_random_ms,"
+           "quick_median3_ms,all_sorted,rankings_match\n";
 
     const size_t sizes[] = {
         10000, 100000, 500000, allTitles.size()
@@ -79,45 +94,53 @@ void runBenchmarks(const std::vector<Title>& allTitles) {
     std::cout << "========================================\n";
     std::cout << "\nCompares Quick Sort vs. Merge Sort \nacross different quantities of titles \nand ranking accuracy\n";
     std::cout << "Dataset: " << allTitles.size() << " rated titles\n";
-    std::cout << "Quick Sort Pivot: Median of 3\n";
+    std::cout << "Quick Sort Pivots: First, Random, Median of 3\n";
+    std::cout << "First pivot is skipped on sorted and \nreverse sorted lists over "
+              << firstPivotLimit << " titles.\n";
     std::cout << "Trials: 3 per input order - random, \nsorted, and reverse sorted\n";
     std::cout << "Current movie filters do not apply.\n";
     std::cout << "Timing only measures the sort itself, \nnot copying or correctness checks.\n";
+    std::cout << "This takes a few minutes.\n";
     std::cout << "\nPress Enter to start";
     std::string input;
     std::getline(std::cin, input);
 
-    // Shuffle indices so sampling does not copy the entire dataset.
+    // shuffle positions instead of copying the whole dataset
     std::vector<size_t> indexes(allTitles.size());
 
     for (size_t i = 0; i < indexes.size(); ++i) {
         indexes[i] = i;
     }
 
-    std::mt19937 rng(42); //fixed seed for reproducibility
+    std::mt19937 rng(42); // fixed seed so every run uses the same random sample
     std::shuffle(indexes.begin(), indexes.end(), rng);
 
     bool allPassed = true;
+    int runsChecked = 0;
 
     std::cout << "\n"
               << std::left
-              << std::setw(12) << "Titles"
-              << std::setw(18) << "Input order"
-              << std::setw(15) << "Merge (ms)"
-              << std::setw(15) << "Quick (ms)"
+              << std::setw(10) << "Titles"
+              << std::setw(16) << "Input order"
+              << std::setw(11) << "Merge"
+              << std::setw(11) << "Q-First"
+              << std::setw(11) << "Q-Random"
+              << std::setw(11) << "Q-Med3"
               << "Checks\n";
-    std::cout << std::string(68, '-') << "\n";
+    std::cout << std::setw(10) << "" << std::setw(16) << ""
+              << "(median ms of 3 runs)\n";
+    std::cout << std::string(76, '-') << "\n";
 
     for (size_t n : sizes) {
         std::vector<Title> base;
-        base.reserve(n); //reserves a designated amount of space to avoid reallocations
+        base.reserve(n); // make room up front so it doesn't keep growing
 
         for (size_t i = 0; i < n; ++i) {
             base.push_back(allTitles[indexes[i]]);
         }
 
         for (const std::string& order : orders) {
-            // First experiment uses the random sample as-is.
+            // random uses the shuffled sample as is, then it gets sorted, then flipped
             if (order == "Sorted") {
                 mergeSort(base);
             }
@@ -125,73 +148,70 @@ void runBenchmarks(const std::vector<Title>& allTitles) {
                 std::reverse(base.begin(), base.end());
             }
 
+            bool skipFirst = (order != "Random" && n > firstPivotLimit);
+
             double mergeTimes[3] = {};
-            double quickTimes[3] = {};
+            double quickTimes[3][3] = {};   // [which pivot][which run], -1 means skipped
             bool experimentPassed = true;
 
             for (int run = 0; run < 3; ++run) {
-                // Both algorithms receive identical, independent copies.
+                // merge sort gets its own fresh copy
                 std::vector<Title> merged = base;
-                std::vector<Title> quick = base;
+                auto start = std::chrono::steady_clock::now();
+                mergeSort(merged);
+                auto end = std::chrono::steady_clock::now();
+                mergeTimes[run] = msBetween(start, end);
 
-                auto timeMerge = [&]() {
-                    auto start = std::chrono::steady_clock::now();
-                    mergeSort(merged);
-                    auto end = std::chrono::steady_clock::now();
+                bool allSorted = isRanked(merged);
+                bool rankingsMatch = true;
 
-                    mergeTimes[run] =
-                        std::chrono::duration<double, std::milli>(
-                            end - start
-                        ).count();
-                };
+                for (int p = 0; p < pivotCount; ++p) {
+                    if (p == 0 && skipFirst) {
+                        quickTimes[p][run] = -1;
+                        continue;
+                    }
 
-                auto timeQuick = [&]() {
-                    auto start = std::chrono::steady_clock::now();
-                    quickSort(quick, Pivot::MedianOfThree);
-                    auto end = std::chrono::steady_clock::now();
+                    // every pivot gets its own fresh copy too, so nobody sorts already sorted data by accident
+                    std::vector<Title> quick = base;
+                    start = std::chrono::steady_clock::now();
+                    quickSort(quick, pivots[p]);
+                    end = std::chrono::steady_clock::now();
+                    quickTimes[p][run] = msBetween(start, end);
 
-                    quickTimes[run] =
-                        std::chrono::duration<double, std::milli>(
-                            end - start
-                        ).count();
-                };
+                    allSorted = allSorted && isRanked(quick);
+                    rankingsMatch = rankingsMatch && sameRanking(merged, quick);
+                }
 
-                timeMerge();
-                timeQuick();
-
-                bool mergeSorted = isRanked(merged);
-                bool quickSorted = isRanked(quick);
-                bool rankingsMatch = sameRanking(merged, quick);
-
-                bool passed =
-                    mergeSorted && quickSorted && rankingsMatch;
-
+                bool passed = allSorted && rankingsMatch;
                 experimentPassed = experimentPassed && passed;
+                ++runsChecked;
 
                 csv << n << "," << order << "," << run + 1 << ","
-                    << std::fixed << std::setprecision(6)
-                    << mergeTimes[run] << "," << quickTimes[run] << ","
-                    << mergeSorted << "," << quickSorted << ","
-                    << rankingsMatch << "\n";
-
+                    << std::fixed << std::setprecision(6) << mergeTimes[run];
+                for (int p = 0; p < pivotCount; ++p) {
+                    csv << ",";
+                    if (quickTimes[p][run] < 0) csv << "skipped";
+                    else csv << quickTimes[p][run];
+                }
+                csv << "," << allSorted << "," << rankingsMatch << "\n";
             }
 
-            double mergeMedian = medianOfThree(
-                mergeTimes[0], mergeTimes[1], mergeTimes[2]
-            );
+            std::cout << std::left << std::fixed << std::setprecision(3)
+                      << std::setw(10) << n
+                      << std::setw(16) << order
+                      << std::setw(11) << medianOfThree(mergeTimes[0], mergeTimes[1], mergeTimes[2]);
 
-            double quickMedian = medianOfThree(
-                quickTimes[0], quickTimes[1], quickTimes[2]
-            );
+            for (int p = 0; p < pivotCount; ++p) {
+                if (p == 0 && skipFirst) {
+                    std::cout << std::setw(11) << "skipped";
+                }
+                else {
+                    std::cout << std::setw(11)
+                              << medianOfThree(quickTimes[p][0], quickTimes[p][1], quickTimes[p][2]);
+                }
+            }
 
-            std::cout << std::left
-                      << std::setw(12) << n
-                      << std::setw(18) << order
-                      << std::fixed << std::setprecision(3)
-                      << std::setw(15) << mergeMedian
-                      << std::setw(15) << quickMedian
-                      << (experimentPassed ? "PASS" : "FAIL")
-                      << "\n";
+            std::cout << (experimentPassed ? "PASS" : "FAIL") << "\n";
 
             allPassed = allPassed && experimentPassed;
         }
@@ -201,10 +221,13 @@ void runBenchmarks(const std::vector<Title>& allTitles) {
     csv.close();
     saved = saved && !csv.fail();
 
-    std::cout << "\nResults: "
-              << (allPassed ? "All 36 comparisons passed."
-                            : "One or more comparisons FAILED.")
-              << "\n";
+    std::cout << "\nResults: ";
+    if (allPassed) {
+        std::cout << "All " << runsChecked << " runs passed: every sort was in order and matched merge sort.\n";
+    }
+    else {
+        std::cout << "One or more runs FAILED.\n";
+    }
 
     std::cout << "\nMemory Usage:\n";
     std::cout << "Merge Sort: O(n) - creates a temporary vector "
