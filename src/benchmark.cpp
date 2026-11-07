@@ -82,7 +82,7 @@ void runBenchmarks(const std::vector<Title>& allTitles) {
     std::cout << "Quick Sort Pivot: Median of 3\n";
     std::cout << "Trials: 3 per input order - random, \nsorted, and reverse sorted\n";
     std::cout << "Current movie filters do not apply.\n";
-    std::cout << "Timing excludes sorting and correctness \nchecks.\n";
+    std::cout << "Timing only measures the sort itself, \nnot copying or correctness checks.\n";
     std::cout << "\nPress Enter to start";
     std::string input;
     std::getline(std::cin, input);
