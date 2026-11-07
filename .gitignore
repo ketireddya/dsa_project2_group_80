@@ -2,11 +2,12 @@ data/
 *.tsv
 *.tsv.gz
 *.exe
-picker
+movie_picker
 test_amrita
 test_sarah
 build/
 .vscode/
 *.csv
+!benchmarks/results.csv
 *.obj
 *.o
