@@ -323,6 +323,15 @@ bool programCompletionChoice() {
 void searchTitles(std::string& titleSearch) {
     std::cout << "\nEnter title search: ";
     std::getline(std::cin, titleSearch);
+    
+    // cut off spaces at the start and end so "  star wars  " still finds "Star Wars"
+    size_t first = titleSearch.find_first_not_of(" \t");
+    if (first == std::string::npos) {
+        titleSearch.clear();                    // it was only spaces, so treat it as empty
+    } else {
+        size_t last = titleSearch.find_last_not_of(" \t");
+        titleSearch = titleSearch.substr(first, last - first + 1);
+    }
 
     if (titleSearch.empty()) {
         std::cout << "Title search removed.\n";
