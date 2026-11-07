@@ -37,7 +37,7 @@ bool sameRanking(const std::vector<Title>& a, const std::vector<Title>& b) {
     return true;
 }
 
-// Returns the middle of the three values, which is the median of three pivot selection strategy.
+// gives back the middle of three trial times, so one weirdly slow run doesn't throw off the result
 double medianOfThree(double a, double b, double c) {
     return a + b + c - std::min({a, b, c}) - std::max({a, b, c});
 }
