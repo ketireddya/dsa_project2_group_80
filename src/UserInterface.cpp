@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <iomanip>
 #include <iostream>
 
@@ -15,7 +16,11 @@ int askForInteger(const std::string& prompt, int minimumAllowed, int maximumAllo
         std::cout << prompt;
 
         std::string input;
-        std::getline(std::cin, input);
+        // if input has run out (like ctrl+z), stop instead of asking forever
+        if (!std::getline(std::cin, input)) {
+            std::cout << "\nNo more input, closing.\n";
+            std::exit(0);
+        }
 
         try {
             size_t charactersRead = 0;
@@ -305,7 +310,11 @@ bool programCompletionChoice() {
         std::cout << "Selection: ";
 
         std::string input;
-        std::getline(std::cin, input);
+        // if input has run out (like ctrl+z), stop instead of asking forever
+        if (!std::getline(std::cin, input)) {
+            std::cout << "\nNo more input, closing.\n";
+            std::exit(0);
+        }
 
         if (input == "M" || input == "m") {
             return true;
@@ -323,6 +332,15 @@ bool programCompletionChoice() {
 void searchTitles(std::string& titleSearch) {
     std::cout << "\nEnter title search: ";
     std::getline(std::cin, titleSearch);
+    
+    // cut off spaces at the start and end so "  star wars  " still finds "Star Wars"
+    size_t first = titleSearch.find_first_not_of(" \t");
+    if (first == std::string::npos) {
+        titleSearch.clear();                    // it was only spaces, so treat it as empty
+    } else {
+        size_t last = titleSearch.find_last_not_of(" \t");
+        titleSearch = titleSearch.substr(first, last - first + 1);
+    }
 
     if (titleSearch.empty()) {
         std::cout << "Title search removed.\n";

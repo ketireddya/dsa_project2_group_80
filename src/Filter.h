@@ -18,3 +18,4 @@ struct FilterOptions {
 // copies every title that passes the filters into a new list
 std::vector<Title> filterTitles(const std::vector<Title>& all,
                                 const FilterOptions& f);
+                                
